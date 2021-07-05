@@ -5,6 +5,8 @@ import random
 import time
 
 import rospy
+import rospy.service
+import rospy.exceptions
 import genpy
 import roslib
 import rosservice
@@ -117,7 +119,7 @@ class OpcUaROSService:
                                              ua.QualifiedName(name, parent.nodeid.NamespaceIndex),
                                              self.call_service, self.inputs, self.outputs)
 
-        rospy.loginfo("Created ROS Service: %s", self.service_name)
+        rospy.loginfo("Created OPC-UA Service: %s", self.service_name)
 
 
     def recursive_create_objects(self, name, idx, parent):
@@ -147,21 +149,30 @@ class OpcUaROSService:
 
     @uamethod
     def call_service(self, parent, *input_args):
-        rospy.loginfo("Call Service: %s", self.service_name)
-        rospy.logdebug("input_args: %s", str(input_args))
+        rospy.loginfo("Called OPC-UA Service: %s", self.service_name)
+        rospy.logdebug("OPC-UA InputArguments: %s", str(input_args))
 
         req, input_idx = self.create_service_request(self.srv_class._request_class(), input_args)
-        rospy.logdebug("Request:\n%s", str(req))
+        rospy.logdebug("ROS Request:\n%s", str(req))
 
         try:
             res = self.proxy.call(req)
-            rospy.logdebug("Response:\n%s", str(res))
-        except (TypeError, rosservice.ROSServiceException, rospy.ROSInterruptException, rospy.ROSSerializationException) as ex:
-            rospy.logerr("Error when calling service: %s", self.service_name, ex)
+            rospy.logdebug("ROS Response:\n%s", str(res))
+        except TypeError as ex:
+            rospy.logerr("%s", str(ex))
             return
+        except rospy.ServiceException as ex:
+            rospy.logerr("%s", str(ex))
+            return ua.StatusCode(ua.status_codes.StatusCodes.BadUnexpectedError)
+        except rospy.ROSInterruptException as ex:
+            rospy.logerr("%s", str(ex))
+            return ua.StatusCode(ua.status_codes.StatusCodes.BadShutdown)
+        except rospy.ROSSerializationException as ex:
+            rospy.logerr("%s", str(ex))
+            return ua.StatusCode(ua.status_codes.StatusCodes.BadInvalidArgument)
 
         output_args = ros_utils.ros_msg_to_variants(res)
-        rospy.logdebug("output_args: %s", str(output_args))
+        rospy.logdebug("OPC-UA OutputArguments: %s", str(output_args))
         return output_args
 
 

@@ -89,7 +89,7 @@ class OpcUaROSTopic:
         self.subscriber = rospy.Subscriber(self.topic_name, roslib.message.get_message_class(topic_type), self.message_callback)
         self.publisher  = rospy.Publisher(self.topic_name, roslib.message.get_message_class(topic_type), queue_size=1)
 
-        rospy.loginfo("Created ROS Topic: %s", self.topic_name)
+        rospy.loginfo("Created OPC-UA Topic: %s", self.topic_name)
 
 
     def recursive_create_objects(self, parent, idx, topic_name):
