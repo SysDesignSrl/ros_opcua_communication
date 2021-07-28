@@ -50,9 +50,12 @@ class ROSServer:
         self.topics_dict = {}
         self.actions_dict = {}
 
-        # whitelist
-        self.services_whitelist = rospy.get_param("~services/whitelist")
-        self.topics_whitelist = rospy.get_param("~topics/whitelist")
+        # topics
+        self.topics_whitelist = rospy.get_param("~topics/whitelist", default=[])
+        self.topics_blacklist = rospy.get_param("~topics/blacklist", default=[])
+        # services
+        self.services_whitelist = rospy.get_param("~services/whitelist", default=[])
+        self.services_blacklist = rospy.get_param("~services/blacklist", default=[])
 
         self.server = opcua.Server()
         self.server.set_endpoint(endpoint)
@@ -188,7 +191,7 @@ class ROSServer:
 if __name__ == '__main__':
 
     # Node
-    rospy.init_node("rosopcua", log_level=rospy.INFO)
+    rospy.init_node("rosopcua", log_level=None)
 
     # Parameters
     server_endpoint = rospy.get_param("~server/endpoint")

@@ -1,32 +1,34 @@
 # Thanks to:
 # https://github.com/ros-visualization/rqt_common_plugins/blob/groovy-devel/rqt_topic/src/rqt_topic/topic_widget.py
 import random
-import numpy
-
+#
 import rospy
 import roslib
 import roslib.message
 import rostopic
+# python-opcua
 from opcua import ua, uamethod
-
-import ros_server
+#
 import ros_actions
 import ros_utils
 
 
 # use to not get dict changed during iteration errors
 def clean_dict(ros_namespace, ros_server, topics_dict, idx, clean_all=False):
-    ros_topics = rospy.get_published_topics(namespace=ros_namespace)
-    topic_names = zip(*ros_topics)[0]
-    topic_types = zip(*ros_topics)[1]
+    topics_pub, topics_sub = rostopic.get_topic_list()
+
+    topics_pub_name = zip(*topics_pub)[0]
+    topics_pub_type = zip(*topics_pub)[1]
+
+    topics_sub_name = zip(*topics_sub)[0]
+    topics_sub_type = zip(*topics_sub)[1]
 
     to_be_deleted = []
     for node_name in topics_dict:
 
-        if (node_name not in topic_names) or (clean_all == True):
+        if (node_name not in topics_pub_name) or (node_name not in topics_sub_name) or (clean_all == True):
 
             topics_dict[node_name].recursive_delete_node(ros_server.server.get_node(ua.NodeId(node_name, idx)))
-
             to_be_deleted.append(node_name)
 
     for node_name in to_be_deleted:
@@ -34,24 +36,46 @@ def clean_dict(ros_namespace, ros_server, topics_dict, idx, clean_all=False):
 
 
 def refresh_topics(ros_namespace, ros_server, topics_dict, idx, topics_object):
-    ros_topics = rospy.get_published_topics(namespace=ros_namespace)
+    topics_pub, topics_sub = rostopic.get_topic_list()
 
-    for topic_name, topic_type in ros_topics:
-
+    for topic_name, topic_type, topic_nodes in topics_pub:
+        if topic_name in ros_server.topics_blacklist:
+            continue
         if topic_name not in ros_server.topics_whitelist:
             continue
 
         if topic_name not in topics_dict or topics_dict[topic_name] is None:
-            # splits = topic_name.split('/')
-            # if splits[-1] not in ["status", "cancel", "goal", "feedback", "result"]:
-                # rospy.loginfo("Ignoring normal topics for debugging...")
+
             opcua_topic = OpcUaROSTopic(ros_server, topics_object, idx, topic_name, topic_type)
             topics_dict[topic_name] = opcua_topic
 
-        # elif number_of_subscribers(topic_name, topics_dict) <= 1 and "rosout" not in node_name:
-        #     topics_dict[topic_name].recursive_delete_node(ros_server.server.get_node(ua.NodeId(topic_name, idx_topics)))
-        #     del topics_dict[topic_name]
-        #     ros_server.own_rosnode_cleanup()
+    for topic_name, topic_type, topic_nodes in topics_sub:
+        if topic_name in ros_server.topics_blacklist:
+            continue
+        if topic_name not in ros_server.topics_whitelist:
+            continue
+
+        if topic_name not in topics_dict or topics_dict[topic_name] is None:
+
+            opcua_topic = OpcUaROSTopic(ros_server, topics_object, idx, topic_name, topic_type)
+            topics_dict[topic_name] = opcua_topic
+
+    clean_dict(ros_namespace, ros_server, topics_dict, idx)
+
+
+def refresh_topics_sub(ros_namespace, ros_server, topics_dict, idx, topics_object):
+    topics_pub, topics_sub = rostopic.get_topic_list()
+
+    for topic_name, topic_type in topics_sub:
+        if topic_name in ros_server.topics_blacklist:
+            continue
+        if topic_name not in ros_server.topics_whitelist:
+            continue
+
+        if topic_name not in topics_dict or topics_dict[topic_name] is None:
+
+            opcua_topic = OpcUaROSTopic(ros_server, topics_object, idx, topic_name, topic_type)
+            topics_dict[topic_name] = opcua_topic
 
     clean_dict(ros_namespace, ros_server, topics_dict, idx)
 
@@ -70,7 +94,7 @@ class OpcUaROSTopic:
 
     def __init__(self, ros_server, parent, idx, topic_name, topic_type):
         self.server = ros_server
-        self.parent = parent # self.recursive_create_objects(parent, idx, topic_name)
+        self.parent = parent
         self.idx = idx
         self.nodes = {}
 
@@ -156,7 +180,7 @@ class OpcUaROSTopic:
                 for index in range(array_size):
                     self.recursive_create_node(parent, idx, name + '[%d]' % index, base_type_str, base_instance)
             else:
-                node = create_node_variable(parent, name, qname, type_name)
+                node = create_variable_node(parent, name, qname, type_name)
                 node.set_writable(True)
                 self.nodes[name] = node
 
@@ -229,54 +253,52 @@ class OpcUaROSTopic:
 
 
     @uamethod
-    def opcua_update_callback(self, parent):
+    def opcua_update_callback(self, node_id):
+        parent = self.server.server.get_node(node_id)
 
-        msg = self.create_msg_instance(parent)
-
+        msg = self.set_msg_instance(self.msg_instance, parent)
         try:
-            # publish msg
             self.publisher.publish(msg)
         except rospy.ROSException as ex:
             rospy.logerr("Error while updating OPC-UA node: '%s'", self.topic_name, ex)
             self.server.server.delete_nodes([self.parent])
 
 
-    # Converts the value of the node to that specified in the ros message we are
-    # trying to fill. Casts python ints.
-    def create_msg_instance(self, node):
+    def set_msg_instance(self, msg_instance, node):
         for child in node.get_children():
             display_name = child.get_display_name()
-            slot_name = display_name.Text
-            if hasattr(self.msg_instance, slot_name):
+            slot_name = display_name.Text.split('/')[-1]
+            if hasattr(msg_instance, slot_name):
                 if child.get_node_class() == ua.NodeClass.Variable:
-                    slot_value = correct_type(child, type(getattr(self.msg_instance, name)))
-                    setattr(self.msg_instance, slot_name, slot_value)
+                    slot_value = self.correct_type(child, type(getattr(msg_instance, slot_name)))
+                    setattr(msg_instance, slot_name, slot_value)
                     rospy.logdebug("updated slot '%s' with value: %s", slot_name, slot_value)
-                elif child.get_node_class == ua.NodeClass.Object:
-                    setattr(self.msg_instance, slot_name, self.create_msg_instance(child))
-
-        return self.msg_instance
-
-
-# to unsigned integers as to fulfill ros specification. Currently only uses a few different types,
-# no other types encountered so far.
-def correct_type(node, type_msg):
-    data_value = node.get_data_value()
-    result = node.get_value()
-    if isinstance(data_value, ua.DataValue):
-        if type_msg.__name__ == "float":
-            result = numpy.float(result)
-        if type_msg.__name__ == "double":
-            result = numpy.double(result)
-        if type_msg.__name__ == "int":
-            result = int(result) & 0xff
-    else:
-        rospy.logerr("can't convert: " + str(node.get_data_value.Value))
-        return None
-    return result
+                elif child.get_node_class() == ua.NodeClass.Object:
+                    setattr(msg_instance, slot_name, self.set_msg_instance(getattr(msg_instance, slot_name), child))
+        return msg_instance
 
 
-def create_node_variable(parent, name, qname, type_name):
+    def correct_type(self, node, msg_type):
+        data_value = node.get_data_value()
+        value = node.get_value()
+
+        result = None
+        if isinstance(data_value, ua.DataValue):
+            if msg_type.__name__ == 'int':
+                result = int(value) & 0xff
+            if msg_type.__name__ == 'float':
+                result = float(value)
+            if msg_type.__name__ == 'double':
+                result = float(value)
+            if msg_type.__name__ == 'str':
+                result = str(value)
+        else:
+            rospy.logerr("can't convert: " + str(data_value.Value))
+
+        return result
+
+
+def create_variable_node(parent, name, qname, type_name):
     rospy.logdebug("Creating node variable: '%s' of type: '%s'", name, type_name)
 
     base_type, array_size = ros_utils.extract_array_info(type_name)
