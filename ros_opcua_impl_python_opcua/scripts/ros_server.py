@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import sys
 import time
 import logging
@@ -11,10 +11,10 @@ import std_srvs.srv
 import opcua
 from opcua import ua
 
-import ros_services
-import ros_topics
-import ros_actions
-import ros_utils
+from ros_opcua_impl_python_opcua import ros_services
+from ros_opcua_impl_python_opcua import ros_topics
+from ros_opcua_impl_python_opcua import ros_actions
+from ros_opcua_impl_python_opcua import ros_utils
 
 
 # Returns the hierachy as one string from the first remaining part on.
@@ -50,12 +50,13 @@ class ROSServer:
         self.topics_dict = {}
         self.actions_dict = {}
 
-        # topics
-        self.topics_whitelist = rospy.get_param("~topics/whitelist", default=[])
-        self.topics_blacklist = rospy.get_param("~topics/blacklist", default=[])
         # services
         self.services_whitelist = rospy.get_param("~services/whitelist", default=[])
         self.services_blacklist = rospy.get_param("~services/blacklist", default=[])
+
+        # topics
+        self.topics_whitelist = rospy.get_param("~topics/whitelist", default=[])
+        self.topics_blacklist = rospy.get_param("~topics/blacklist", default=[])
 
         self.server = opcua.Server()
         self.server.set_endpoint(endpoint)

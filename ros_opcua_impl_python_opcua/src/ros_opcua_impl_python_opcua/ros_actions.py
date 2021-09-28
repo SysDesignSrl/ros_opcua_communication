@@ -1,4 +1,3 @@
-# !/usr/bin/python
 # thanks to https://github.com/ros-visualization/rqt_common_plugins/blob/groovy-devel/rqt_action/src/rqt_action/action_plugin.py
 import string
 import random
@@ -7,18 +6,17 @@ import pydoc
 import rospy
 import rostopic
 import roslib
-from roslib import message
+import roslib.message
 import actionlib
 import actionlib_msgs
+# python-opcua
+from opcua import ua, uamethod
+from opcua.ua import uaerrors
 
-from opcua import ua, common
-from opcua import uamethod
-from opcua.ua.uaerrors import UaError
-
-import ros_server
-import ros_services
-import ros_topics
-import ros_utils
+# import ros_server
+from ros_opcua_impl_python_opcua import ros_services
+from ros_opcua_impl_python_opcua import ros_topics
+from ros_opcua_impl_python_opcua import ros_utils
 
 
 class OpcUaROSAction:
@@ -196,8 +194,8 @@ class OpcUaROSAction:
         try:
             self.client.cancel_all_goals()
             self.update_state()
-        except (rospy.ROSException, UaError) as e:
-            rospy.logerr("Error when cancelling a goal for " + self.name, e)
+        except (rospy.ROSException, uaerrors.UaError) as ex:
+            rospy.logerr("Error when cancelling a goal for " + self.name, ex)
 
 
     def recursive_create_objects(self, topic_name, idx, parent):
@@ -223,7 +221,7 @@ class OpcUaROSAction:
                             ua.QualifiedName(name, parent.nodeid.NamespaceIndex))
                         return self.recursive_create_objects(ros_server.nextname(hierachy, hierachy.index(name)), idx, child)
                 # thrown when node with parent name is not existent in server
-                except IndexError, UaError:
+                except (IndexError, uaerrors.UaError) as ex:
                     child = parent.add_object(
                         ua.NodeId(name + str(random.randint(0, 10000)), parent.nodeid.NamespaceIndex, ua.NodeIdType.String),
                         ua.QualifiedName(name, parent.nodeid.NamespaceIndex))

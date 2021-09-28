@@ -1,19 +1,14 @@
 ###################
 ## OPC-UA Server ##
 ###################
-
-endpoint: "opc.tcp://localhost:4840"
-  # The endpoint of the server
-name: "ROSServer"
-  # The name of the server
-
-###################
-## OPC-UA Filter ##
-###################
+server:
+  endpoint: "opc.tcp://localhost:4840"
+  name: "ROSServer"
 
 topics:
   whitelist:
     - /joint_states
+
 services:
   whitelist:
     - /ewdl_driver/start_homing

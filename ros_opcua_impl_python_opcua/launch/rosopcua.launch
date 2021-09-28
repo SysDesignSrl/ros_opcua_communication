@@ -2,8 +2,9 @@
   <env name="ROS_PYTHON_LOG_CONFIG_FILE"
       value="$(find ros_opcua_impl_python_opcua)/python_logging.conf"/>
 
+  <!-- OPC-UA Server -->
   <node name="rosopcua" pkg="ros_opcua_impl_python_opcua" type="ros_server.py" output="screen">
-    <rosparam ns="server" file="$(find ros_opcua_impl_python_opcua)/config/server.yaml"/>
+    <rosparam file="$(find ros_opcua_impl_python_opcua)/config/opcua_server.yaml"/>
   </node>
 
 </launch>

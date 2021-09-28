@@ -8,9 +8,10 @@ import roslib.message
 import rostopic
 # python-opcua
 from opcua import ua, uamethod
-#
-import ros_actions
-import ros_utils
+from opcua.ua import uaerrors
+
+# import ros_server
+from ros_opcua_impl_python_opcua import ros_utils
 
 
 # use to not get dict changed during iteration errors
@@ -132,7 +133,7 @@ class OpcUaROSTopic:
                             ua.NodeId(name, parent.nodeid.NamespaceIndex, ua.NodeIdType.String),
                             ua.QualifiedName(name, parent.nodeid.NamespaceIndex))
                         return self.recursive_create_objects(child, idx, ros_server.nextname(hierachy, hierachy.index(name)))
-                except IndexError, common.UaError:
+                except (IndexError, uaerrors.UaError) as ex:
                     # if for some reason 2 services with exactly same name are created use hack>: add random int, prob to hit two
                     # same ints 1/10000, should be sufficient
                     child = parent.add_object(

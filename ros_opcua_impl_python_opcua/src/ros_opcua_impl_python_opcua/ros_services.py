@@ -11,10 +11,11 @@ import genpy
 import roslib
 import rosservice
 # python-opcua
-from opcua import ua, uamethod, common
-#
-import ros_server
-import ros_utils
+from opcua import ua, uamethod
+from opcua.ua import uaerrors
+
+# import ros_server
+from ros_opcua_impl_python_opcua import ros_utils
 
 
 def clean_dict(ros_namespace, ros_server, services_dict, idx, clean_all=False):
@@ -138,13 +139,16 @@ class OpcUaROSService:
                         rospy.logdebug("recursive call for same name for: " + name)
                         return self.recursive_create_objects(ros_server.nextname(hierachy, hierachy.index(name)), idx, node_with_same_name)
                     else:
-                        new_parent = parent.add_object(ua.NodeId(name, parent.nodeid.NamespaceIndex, ua.NodeIdType.String),
-                                                       ua.QualifiedName(name, parent.nodeid.NamespaceIndex))
+                        new_parent = parent.add_object(
+                            ua.NodeId(name, parent.nodeid.NamespaceIndex, ua.NodeIdType.String),
+                            ua.QualifiedName(name, parent.nodeid.NamespaceIndex))
                         return self.recursive_create_objects(ros_server.nextname(hierachy, hierachy.index(name)), idx, new_parent)
-                except IndexError, common.uaerrors.UaError:
-                    new_parent = parent.add_object(ua.NodeId(name + str(random.randint(0, 10000)), parent.nodeid.NamespaceIndex, ua.NodeIdType.String),
-                                                   ua.QualifiedName(name, parent.nodeid.NamespaceIndex))
+                except (IndexError, uaerrors.UaError) as ex:
+                    new_parent = parent.add_object(
+                        ua.NodeId(name + str(random.randint(0, 10000)), parent.nodeid.NamespaceIndex, ua.NodeIdType.String),
+                        ua.QualifiedName(name, parent.nodeid.NamespaceIndex))
                     return self.recursive_create_objects(ros_server.nextname(hierachy, hierachy.index(name)), idx, new_parent)
+
         return parent
 
 
